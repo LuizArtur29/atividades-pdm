@@ -6,7 +6,7 @@ export default function AppLayout() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.headerContainer}>
-        <Text style={styles.headerTitle}>Jogo da Velha</Text>
+        <Text style={styles.headerTitle}>Jogo da Velha OO</Text>
       </View>
       <View style={styles.content}>
         <Slot />

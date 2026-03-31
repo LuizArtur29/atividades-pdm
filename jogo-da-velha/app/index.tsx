@@ -7,139 +7,130 @@ import {
   Dimensions,
   Alert
 } from 'react-native';
+import { Jogo } from './Jogo';
+import { Jogador } from './Jogador';
+import { JogadorAutomatizado } from './JogadorAutomatizado';
+import { SituacaoPartida } from './SituacaoPartida';
 
 const { width } = Dimensions.get('window');
 const BOARD_SIZE = width * 0.85;
 const SQUARE_SIZE = BOARD_SIZE / 3;
 
-export default function TicTacToe() {
-  const [board, setBoard] = useState<string[]>(Array(9).fill(''));
+export default function TicTacToeOO() {
+  const [jogo] = useState(() => new Jogo(new Jogador("Você"), new JogadorAutomatizado("CPU")));
+  const [partida, setPartida] = useState(() => jogo.iniciaPartida());
+  
+  const [boardState, setBoardState] = useState(partida.getTabuleiro());
+  const [vezHumano, setVezHumano] = useState(partida.getVezJogador1());
+  const [partidaFinalizada, setPartidaFinalizada] = useState(false);
+  
   const [userScore, setUserScore] = useState(0);
   const [computerScore, setComputerScore] = useState(0);
-  const [isUserTurn, setIsUserTurn] = useState(true);
 
-  const checkWinner = (squares: string[]) => {
-    const lines = [
-      [0, 1, 2], [3, 4, 5], [6, 7, 8],
-      [0, 3, 6], [1, 4, 7], [2, 5, 8],
-      [0, 4, 8], [2, 4, 6]
-    ];
-    for (let i = 0; i < lines.length; i++) {
-      const [a, b, c] = lines[i];
-      if (squares[a] && squares[a] === squares[b] && squares[a] === squares[c]) {
-        return squares[a];
+  const atualizaTela = () => {
+    setBoardState([...partida.getTabuleiro().map(row => [...row])]);
+    setVezHumano(partida.getVezJogador1());
+  };
+
+  const processaFimDeTurno = () => {
+    const situacao = partida.verificaFim();
+    
+    if (situacao !== SituacaoPartida.EmAndamento) {
+      setPartidaFinalizada(true);
+      
+      if (situacao === SituacaoPartida.VitoriaJogador1) {
+        jogo.getJogador1().adicionaVitoria();
+        Alert.alert('Fim de Jogo', 'Você venceu!');
+      } else if (situacao === SituacaoPartida.VitoriaJogador2) {
+        jogo.getJogador2().adicionaVitoria();
+        Alert.alert('Fim de Jogo', 'A CPU venceu!');
+      } else {
+        Alert.alert('Fim de Jogo', 'Deu velha!');
       }
+
+      setUserScore(jogo.getJogador1().getVitorias());
+      setComputerScore(jogo.getJogador2().getVitorias());
     }
-    return null;
+  };
+
+  const handlePress = (linha: number, coluna: number) => {
+    if (partidaFinalizada || !vezHumano) return;
+
+    const jogadaValida = partida.joga(linha, coluna);
+    if (!jogadaValida) return;
+
+    atualizaTela();
+    processaFimDeTurno();
   };
 
   useEffect(() => {
-    if (!isUserTurn) {
+    if (!vezHumano && !partidaFinalizada) {
       const timer = setTimeout(() => {
-        makeComputerMove();
+        const cpu = jogo.getJogador2() as JogadorAutomatizado;
+        const [linha, coluna] = cpu.realizaJogada(partida.getTabuleiro());
+        
+        if (linha !== -1 && coluna !== -1) {
+          partida.joga(linha, coluna);
+          atualizaTela();
+          processaFimDeTurno();
+        }
       }, 500);
+
       return () => clearTimeout(timer);
     }
-  }, [isUserTurn]);
-
-  const makeComputerMove = () => {
-    const emptyIndices = board
-      .map((val, idx) => (val === '' ? idx : null))
-      .filter((val) => val !== null) as number[];
-
-    if (emptyIndices.length === 0) return;
-
-    const randomIndex = emptyIndices[Math.floor(Math.random() * emptyIndices.length)];
-    const newBoard = [...board];
-    newBoard[randomIndex] = 'O';
-    setBoard(newBoard);
-
-    const winner = checkWinner(newBoard);
-    if (winner) {
-      handleWin(winner);
-    } else if (!newBoard.includes('')) {
-      handleDraw();
-    } else {
-      setIsUserTurn(true);
-    }
-  };
-
-  const handlePress = (index: number) => {
-    if (board[index] !== '' || !isUserTurn) return;
-
-    const newBoard = [...board];
-    newBoard[index] = 'X';
-    setBoard(newBoard);
-
-    const winner = checkWinner(newBoard);
-    if (winner) {
-      handleWin(winner);
-    } else if (!newBoard.includes('')) {
-      handleDraw();
-    } else {
-      setIsUserTurn(false);
-    }
-  };
-
-  const handleWin = (winner: string) => {
-    if (winner === 'X') {
-      setUserScore((prev) => prev + 1);
-      Alert.alert('Fim de Jogo', 'Você venceu!');
-    } else {
-      setComputerScore((prev) => prev + 1);
-      Alert.alert('Fim de Jogo', 'O Computador venceu!');
-    }
-    resetBoard();
-  };
-
-  const handleDraw = () => {
-    Alert.alert('Fim de Jogo', 'Deu velha!');
-    resetBoard();
-  };
+  }, [vezHumano, partidaFinalizada]);
 
   const resetBoard = () => {
-    setBoard(Array(9).fill(''));
-    setIsUserTurn(true);
+    const novaPartida = jogo.iniciaPartida();
+    setPartida(novaPartida);
+    setPartidaFinalizada(false);
+    setBoardState([...novaPartida.getTabuleiro().map(row => [...row])]);
+    setVezHumano(novaPartida.getVezJogador1());
   };
 
   return (
     <View style={styles.container}>
       <View style={styles.scoreBoard}>
         <View style={styles.scoreBox}>
-          <Text style={styles.scoreLabel}>Você (X)</Text>
+          <Text style={styles.scoreLabel}>{jogo.getJogador1().getNome()} (X)</Text>
           <Text style={styles.scoreValue}>{userScore}</Text>
         </View>
         <View style={styles.scoreBox}>
-          <Text style={styles.scoreLabel}>Computador (O)</Text>
+          <Text style={styles.scoreLabel}>{jogo.getJogador2().getNome()} (O)</Text>
           <Text style={styles.scoreValue}>{computerScore}</Text>
         </View>
       </View>
 
       <View style={styles.boardContainer}>
         <View style={styles.board}>
-          {board.map((cell, index) => (
-            <TouchableOpacity
-              key={index}
-              style={[
-                styles.square,
-                index < 3 && styles.topRow,
-                index % 3 === 0 && styles.leftColumn,
-                index > 5 && styles.bottomRow,
-                index % 3 === 2 && styles.rightColumn,
-              ]}
-              onPress={() => handlePress(index)}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.cellText, cell === 'X' ? styles.xText : styles.oText]}>
-                {cell}
-              </Text>
-            </TouchableOpacity>
-          ))}
+          {boardState.map((linhaArray, linha) =>
+            linhaArray.map((celula, coluna) => {
+              const index = linha * 3 + coluna;
+              return (
+                <TouchableOpacity
+                  key={`${linha}-${coluna}`}
+                  style={[
+                    styles.square,
+                    linha === 0 && styles.topRow,
+                    coluna === 0 && styles.leftColumn,
+                    linha === 2 && styles.bottomRow,
+                    coluna === 2 && styles.rightColumn,
+                  ]}
+                  onPress={() => handlePress(linha, coluna)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.cellText, celula === 'X' ? styles.xText : styles.oText]}>
+                    {celula || ''}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })
+          )}
         </View>
       </View>
 
       <TouchableOpacity style={styles.resetButton} onPress={resetBoard}>
-        <Text style={styles.resetButtonText}>Reiniciar Partida</Text>
+        <Text style={styles.resetButtonText}>Nova Partida</Text>
       </TouchableOpacity>
     </View>
   );
